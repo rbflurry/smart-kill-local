@@ -12,26 +12,20 @@ logger = logging.getLogger("victor-api")
 
 app = FastAPI(title="Victor Smart-Kill Local API")
 
-# --- Config from environment ---
+# ---------------------------------------------------------------------------
+# Config from environment
+# ---------------------------------------------------------------------------
 MQTT_HOST   = os.getenv("MQTT_HOST", "192.168.1.100")
 MQTT_PORT   = int(os.getenv("MQTT_PORT", 1883))
 MQTT_USER   = os.getenv("MQTT_USER", "")
 MQTT_PASS   = os.getenv("MQTT_PASS", "")
 MQTT_PREFIX = os.getenv("MQTT_PREFIX", "victor")
 
-# Device credentials → token map
-# Format in .env: "SERIAL1:TOKEN1,SERIAL2:TOKEN2"
-DEVICE_TOKENS_RAW = os.getenv("DEVICE_TOKENS", "")
-
-def build_token_map():
-    token_map = {}
-    for pair in DEVICE_TOKENS_RAW.split(","):
-        parts = pair.strip().split(":")
-        if len(parts) == 2:
-            token_map[parts[0].strip()] = parts[1].strip()
-    return token_map
-
-DEVICE_TOKENS = build_token_map()
+DEVICE_TOKENS = {
+    pair.split(":")[0].strip(): pair.split(":")[1].strip()
+    for pair in os.getenv("DEVICE_TOKENS", "").split(",")
+    if ":" in pair
+}
 
 ACTIVITY_LABELS = {
     1: "power_on",
@@ -44,6 +38,9 @@ ACTIVITY_LABELS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# MQTT helper
+# ---------------------------------------------------------------------------
 def mqtt_publish(topic: str, payload: dict):
     try:
         client = mqtt.Client()
@@ -69,11 +66,27 @@ async def auth(request: Request):
 
     username = body.get("username", "")
     password = body.get("password", "")
-    logger.info(f"Auth request from: {username}")
+    logger.info(f"Auth request from: {username} password: {password}")
+
+    # Publish credentials to MQTT before anything else.
+    # Topic is retained so they survive broker/container restarts.
+    # Use these to exchange for a real token while the original API is live:
+    #   curl -X POST https://www.victorsmarthost.com/api-token-auth/ \
+    #        -H "Content-Type: application/json" \
+    #        -d '{"username":"<username>","password":"<password>"}'
+    # Then add the returned token to DEVICE_TOKENS in .env and restart.
+    mqtt_publish(f"{MQTT_PREFIX}/{username}/credentials", {
+        "timestamp": datetime.utcnow().isoformat(),
+        "username":  username,
+        "password":  password,
+    })
 
     token = DEVICE_TOKENS.get(username)
     if not token:
-        logger.warning(f"No token configured for device: {username}")
+        logger.warning(
+            f"No token configured for {username} — "
+            f"credentials published to {MQTT_PREFIX}/{username}/credentials"
+        )
         return JSONResponse(
             status_code=401,
             content={"detail": "No token configured for this device"},
@@ -82,8 +95,8 @@ async def auth(request: Request):
 
     mqtt_publish(f"{MQTT_PREFIX}/{username}/auth", {
         "timestamp": datetime.utcnow().isoformat(),
-        "username": username,
-        "status": "authenticated",
+        "username":  username,
+        "status":    "authenticated",
     })
 
     return JSONResponse(
@@ -121,29 +134,29 @@ async def history(trap_id: str, request: Request):
         f"battery={battery}% rssi={rssi}dBm seq={sequence}"
     )
 
-    # Full status
+    # Full status payload
     mqtt_publish(f"{base}/status", {
-        "timestamp": now,
-        "trap_id": trap_id,
-        "sequence_number": sequence,
-        "activity_type": activity_type,
-        "activity_label": activity_label,
-        "kills_present": kills_present,
-        "total_kills_reported": kills_total,
-        "battery_level": battery,
+        "timestamp":             now,
+        "trap_id":               trap_id,
+        "sequence_number":       sequence,
+        "activity_type":         activity_type,
+        "activity_label":        activity_label,
+        "kills_present":         kills_present,
+        "total_kills_reported":  kills_total,
+        "battery_level":         battery,
         "wireless_network_rssi": rssi,
-        "firmware_version": firmware,
-        "error_code": error_code,
+        "firmware_version":      firmware,
+        "error_code":            error_code,
     })
 
-    # Individual sensor topics
-    mqtt_publish(f"{base}/battery",        {"value": battery,       "unit": "%"})
-    mqtt_publish(f"{base}/rssi",           {"value": rssi,          "unit": "dBm"})
-    mqtt_publish(f"{base}/kills_present",  {"value": kills_present})
-    mqtt_publish(f"{base}/kills_total",    {"value": kills_total})
-    mqtt_publish(f"{base}/activity",       {"value": activity_label})
+    # Individual sensor topics for easy Home Assistant integration
+    mqtt_publish(f"{base}/battery",       {"value": battery,       "unit": "%"})
+    mqtt_publish(f"{base}/rssi",          {"value": rssi,          "unit": "dBm"})
+    mqtt_publish(f"{base}/kills_present", {"value": kills_present})
+    mqtt_publish(f"{base}/kills_total",   {"value": kills_total})
+    mqtt_publish(f"{base}/activity",      {"value": activity_label})
 
-    # Alerts
+    # Event alerts
     alert_map = {
         5: ("kill_detected",  f"Trap {trap_id} detected a kill"),
         6: ("needs_cleaning", f"Trap {trap_id} needs emptying"),
@@ -151,13 +164,25 @@ async def history(trap_id: str, request: Request):
     }
     if activity_type in alert_map:
         alert_type, alert_msg = alert_map[activity_type]
-        mqtt_publish(f"{base}/alert", {"timestamp": now, "type": alert_type, "message": alert_msg})
+        mqtt_publish(f"{base}/alert", {
+            "timestamp": now,
+            "type":      alert_type,
+            "message":   alert_msg,
+        })
 
     if battery < 20:
-        mqtt_publish(f"{base}/alert", {"timestamp": now, "type": "low_battery", "message": f"Trap {trap_id} battery low: {battery}%"})
+        mqtt_publish(f"{base}/alert", {
+            "timestamp": now,
+            "type":      "low_battery",
+            "message":   f"Trap {trap_id} battery low: {battery}%",
+        })
 
     if error_code != 0:
-        mqtt_publish(f"{base}/alert", {"timestamp": now, "type": "error", "message": f"Trap {trap_id} error code: {error_code}"})
+        mqtt_publish(f"{base}/alert", {
+            "timestamp": now,
+            "type":      "error",
+            "message":   f"Trap {trap_id} error code: {error_code}",
+        })
 
     return Response(status_code=204, headers={"Connection": "close"})
 
