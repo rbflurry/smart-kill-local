@@ -8,6 +8,10 @@ Victor Smart-Kill WiFi traps (ESP8266 based) report their status to a cloud API 
 
 > **Note:** While the original API is currently still live, there is no guarantee it will remain so. This project lets you run everything independently.
 
+## Notes
+I am not sure what causes the api-token-auth process. I have been able to reprovision my traps to my self hosted endpoint without the api-token process triggering. 
+When it skips that process the trap sends updates to the /trap api endpoint with the token in the headers of the request.
+
 ---
 
 ## How It Works
@@ -317,7 +321,7 @@ curl [-k] http[s]://local.victorsmartkill.com/health
 
 - **Bearer token is device-specific and validated on-device.** The device checks the token returned by `/api-token-auth/` against a value stored in its firmware. You must return the real token obtained from `www.victorsmarthost.com`. An arbitrary string will cause the device to retry 3 times then go back to deep sleep.
 - **Hostname must match `*.victorsmartkill.com`.** The device refuses bare IP addresses and non-matching hostnames.
-- **HTTPS required.** The device uses BearSSL for TLS but does not validate the certificate. A self-signed cert is sufficient.
+- **HTTPS required/443** The device uses BearSSL for TLS but does not validate the certificate. A self-signed cert is sufficient.
 
 ---
 
