@@ -154,10 +154,10 @@ Save the username and password — they are unique to each physical trap.
 
 ```bash
 # Confirm the device is responding
-curl http://192.168.4.1/wifiscan
+curl http://192.168.1.1/wifiscan
 
 # Send credentials — curl 52 (empty reply) on this request is normal
-curl -X POST http://192.168.4.1/ \
+curl -X POST http://192.168.1.1/ \
   -H "Content-Type: application/json" \
   -d '{
     "ssid":      "YourHomeWiFiSSID",
