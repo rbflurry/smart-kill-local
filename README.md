@@ -197,9 +197,10 @@ curl -X POST http://192.168.4.1/ \
   }'
 ```
 
-The device will accept the payload, reboot, connect to your WiFi, and start calling your Node-RED server. A curl 52 (empty reply) on the POST is normal — the device closes the connection immediately after receiving credentials.
+The device will accept the payload, reboot, connect to your WiFi, and start calling your Node-RED server. The device closes the connection immediately after receiving credentials.
 
 > **trap_host format:** bare hostname only, no `https://` prefix. The firmware prepends that itself.
+> **IP Address** The Trap IP address might be 192.168.1.1, check to see what IP address to use when your laptop joins the standalone ap.
 
 ---
 
