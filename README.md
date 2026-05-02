@@ -9,8 +9,10 @@ Victor Smart-Kill WiFi traps (ESP8266 based) report their status to a cloud API 
 > **Note:** While the original API is currently still live, there is no guarantee it will remain so. This project lets you run everything independently.
 
 ## Notes
-I am not sure what causes the api-token-auth process. I have been able to reprovision my traps to my self hosted endpoint without the api-token process triggering. 
-When it skips that process the trap sends updates to the /trap api endpoint with the token in the headers of the request.
+- I am not sure what causes the api-token-auth process. I have been able to reprovision my traps to my self hosted endpoint without the api-token process triggering. 
+- When it skips that process the trap sends updates to the /trap api endpoint with the token in the headers of the request.
+- You can choose to capture traffic to the original api (www.victorsmarthost.com) by setting up a local DNS entry for it. This will give you the auth token when the device polls into the traps/history api. The Username of the trap can be found in the mobile app or on the sticker on the bottom
+
 
 ---
 
@@ -31,7 +33,6 @@ Both calls are made over **HTTPS**. The device does not validate the SSL certifi
 - An existing MQTT broker on your network (Mosquitto, EMQX, Home Assistant's built-in broker, etc.)
 - A local DNS entry pointing `local.victorsmartkill.com` at your server — the device checks the hostname and will not connect to bare IP addresses
 - `openssl` (only needed if running in SSL mode)
-- You can choose to capture traffic to the original api (www.victorsmarthost.com) by setting up a local DNS entry for it. This will give you the auth token when the device polls into the traps/history api. The Username of the trap can be found in the mobile app.
 
 ---
 
