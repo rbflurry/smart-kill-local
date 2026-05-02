@@ -1,0 +1,2 @@
+# smart-kill-local
+
