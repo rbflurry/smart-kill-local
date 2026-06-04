@@ -129,7 +129,7 @@ async def history(trap_id: str, request: Request):
     base           = f"{MQTT_PREFIX}/{trap_id}"
 
     logger.info(
-        f"Trap {trap_id} | {activity_label} | "
+        f"Trap {trap_id} | {now} | {activity_label} | "
         f"kills={kills_present} total={kills_total} "
         f"battery={battery}% rssi={rssi}dBm seq={sequence}"
     )
@@ -155,6 +155,7 @@ async def history(trap_id: str, request: Request):
     mqtt_publish(f"{base}/kills_present", {"value": kills_present})
     mqtt_publish(f"{base}/kills_total",   {"value": kills_total})
     mqtt_publish(f"{base}/activity",      {"value": activity_label})
+    mqtt_publish(f"{base}/last_seen",     {"value": now})
 
     # Event alerts
     alert_map = {
